@@ -96,3 +96,10 @@ logread -e '^frpc-office\['                     # 单个实例的日志
 
 界面源码里写英文并用 `_()` 包起来，中文加到 `po/zh_Hans/frpc-multi.po`。
 构建时编成 `/usr/lib/lua/luci/i18n/frpc-multi.zh-cn.lmo` 打进 LuCI 包。
+
+## License
+
+本项目采用 [MIT 许可证](LICENSE)。
+
+随包分发的 frpc 二进制来自 fatedier 的 [frp](https://github.com/fatedier/frp)，采用 [Apache License 2.0](https://github.com/fatedier/frp/blob/dev/LICENSE)，原样分发、未作修改。
+`frpc-multi` 包会把两份许可证装到 `/usr/share/frpc-multi/`(`LICENSE` 与 `LICENSE.frp`)。

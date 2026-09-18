@@ -96,3 +96,10 @@ Upgrading from 1.0.0 moves `/etc/frpc-multi/<name>.toml` to `/etc/frpc-multi/<na
 
 UI strings are written in English and wrapped in `_()`; Chinese goes into `po/zh_Hans/frpc-multi.po`.
 The build compiles it into `/usr/lib/lua/luci/i18n/frpc-multi.zh-cn.lmo` inside the LuCI package.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
+The bundled frpc binary comes from [frp](https://github.com/fatedier/frp) by fatedier and is licensed under the [Apache License 2.0](https://github.com/fatedier/frp/blob/dev/LICENSE); it is redistributed unmodified.
+The `frpc-multi` package installs both licenses to `/usr/share/frpc-multi/` (`LICENSE` and `LICENSE.frp`).

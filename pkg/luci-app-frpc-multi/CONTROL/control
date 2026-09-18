@@ -1,8 +1,9 @@
 Package: luci-app-frpc-multi
-Version: 1.1.0
+Version: 1.1.1
 Architecture: all
 Maintainer: wilinz
 Section: luci
 Priority: optional
+License: MIT
 Depends: luci-base, frpc-multi, rpcd
 Description: LuCI interface for frpc-multi

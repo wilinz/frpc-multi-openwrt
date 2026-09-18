@@ -1,7 +1,8 @@
 Package: frpc-multi
-Version: 1.1.0
+Version: 1.1.1
 Architecture: x86_64
 Maintainer: wilinz
 Section: net
 Priority: optional
-Description: frp client 0.71.0, runs multiple instances with one config file each
+License: MIT AND Apache-2.0
+Description: frp client 0.71.0, runs multiple instances, each with one or more config files

@@ -38,7 +38,7 @@ if [ -n "$VERSION" ]; then
 	done
 fi
 sedi "s/^Architecture:.*/Architecture: $ARCH/" "$CONTROL"
-sedi "s/^Description:.*/Description: frp client $FRP_VERSION, runs multiple instances with one config file each/" "$CONTROL"
+sedi "s/^Description:.*/Description: frp client $FRP_VERSION, runs multiple instances, each with one or more config files/" "$CONTROL"
 
 # opkg 架构名 -> frp release 后缀。frp 的 arm_hf 是 GOARM=7(ARMv7 + VFPv3), 只给带浮点的
 # cortex-a; 其余 arm(含 arm1176jzf-s_vfp 这类 ARMv6)用 GOARM=5 的 arm。frp 不出 32 位 x86。
@@ -108,6 +108,11 @@ if [ "$BUILD_ENGINE" = "1" ]; then
 	P=pkg/frpc-multi/data
 	mkdir -p $P/usr/libexec/frpc-multi
 	tar -xzf "$DL/$name.tar.gz" -O "$name/frpc" > $P/usr/libexec/frpc-multi/frpc
+	# 本项目 MIT; 随包分发的 frpc 属 frp 作者, Apache-2.0 要求附上许可证全文
+	mkdir -p $P/usr/share/frpc-multi
+	cp LICENSE $P/usr/share/frpc-multi/LICENSE
+	tar -xzf "$DL/$name.tar.gz" -O "$name/LICENSE" > $P/usr/share/frpc-multi/LICENSE.frp
+	chmod 0644 $P/usr/share/frpc-multi/LICENSE $P/usr/share/frpc-multi/LICENSE.frp
 	chmod 0755 $P/usr/libexec/frpc-multi/frpc $P/usr/libexec/frpc-multi/ctl $P/etc/init.d/frpc-multi
 	chmod 0644 $P/usr/share/frpc-multi/frpc.toml.example
 	if [ "$UPX" = "1" ]; then
