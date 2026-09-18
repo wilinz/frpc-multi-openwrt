@@ -108,8 +108,8 @@ if [ "$BUILD_ENGINE" = "1" ]; then
 	P=pkg/frpc-multi/data
 	mkdir -p $P/usr/libexec/frpc-multi
 	tar -xzf "$DL/$name.tar.gz" -O "$name/frpc" > $P/usr/libexec/frpc-multi/frpc
-	chmod 0755 $P/usr/libexec/frpc-multi/frpc $P/usr/libexec/frpc-multi/rename $P/etc/init.d/frpc-multi
-	chmod 0600 $P/etc/frpc-multi/main.toml   # 含 token
+	chmod 0755 $P/usr/libexec/frpc-multi/frpc $P/usr/libexec/frpc-multi/ctl $P/etc/init.d/frpc-multi
+	chmod 0644 $P/usr/share/frpc-multi/frpc.toml.example
 	if [ "$UPX" = "1" ]; then
 		upx --lzma -q $P/usr/libexec/frpc-multi/frpc
 	fi

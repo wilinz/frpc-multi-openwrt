@@ -1,3 +1,4 @@
-# 每个 instance 段是一个 frpc 进程, 配置文件为 /etc/frpc-multi/<段名>.toml
+# 每个 instance 段是一个 frpc 进程, 配置在 /etc/frpc-multi/<段名>/*.toml,
+# 每个 .toml 连一台 frps, 同一实例的多个配置共用这个进程
 config instance 'main'
 	option enabled '0'

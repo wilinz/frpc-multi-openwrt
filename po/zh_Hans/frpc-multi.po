@@ -7,13 +7,16 @@ msgstr ""
 msgid "%s already exists"
 msgstr "%s 已存在"
 
+msgid "Add file"
+msgstr "添加文件"
+
 msgid "Add instance"
 msgstr "添加实例"
 
 msgid "All levels"
 msgstr "全部级别"
 
-msgid "Config file"
+msgid "Config files"
 msgstr "配置文件"
 
 msgid "Copied"
@@ -25,14 +28,20 @@ msgstr "复制"
 msgid "Delete"
 msgstr "删除"
 
+msgid "Delete file"
+msgstr "删除文件"
+
 msgid "Disabled"
 msgstr "已停用"
 
 msgid "Download"
 msgstr "下载"
 
-msgid "Each instance runs as a separate client process with its config file at /etc/frpc-multi/&lt;name&gt;.toml."
-msgstr "每个实例是一个独立的客户端进程，配置文件保存在 /etc/frpc-multi/&lt;实例名&gt;.toml。"
+msgid "Each file connects to one server, and all enabled files of this instance run in one process."
+msgstr "每个文件连一台服务器，本实例中启用的文件共用一个进程。"
+
+msgid "Each instance runs as a separate process with its config files in /etc/frpc-multi/&lt;name&gt;/."
+msgstr "每个实例是一个独立进程，配置文件放在 /etc/frpc-multi/&lt;实例名&gt;/ 目录下。"
 
 msgid "Enable"
 msgstr "启用"
@@ -42,6 +51,12 @@ msgstr "仅错误"
 
 msgid "Failed to rename the UCI section"
 msgstr "UCI 段改名失败"
+
+msgid "File %s already exists"
+msgstr "文件 %s 已存在"
+
+msgid "File names may only contain letters, digits, underscores and hyphens"
+msgstr "文件名只能用字母、数字、下划线和连字符"
 
 msgid "Follow"
 msgstr "跟随最新"
@@ -73,6 +88,12 @@ msgstr "日志"
 msgid "Name"
 msgstr "实例名"
 
+msgid "New file name"
+msgstr "新文件名"
+
+msgid "No config files yet"
+msgstr "还没有配置文件"
+
 msgid "No instances yet"
 msgstr "还没有实例"
 
@@ -91,8 +112,8 @@ msgstr "改名"
 msgid "Rename failed"
 msgstr "改名失败"
 
-msgid "Renaming takes effect immediately and renames the config file too."
-msgstr "改名立即生效，配置文件随之改名。"
+msgid "Renaming takes effect immediately and renames the config directory too."
+msgstr "改名立即生效，配置目录随之改名。"
 
 msgid "Restart"
 msgstr "重启"
@@ -106,8 +127,8 @@ msgstr "搜索"
 msgid "Showing %d of %d lines"
 msgstr "显示 %d / 共 %d 行"
 
-msgid "The instance name may only contain letters, digits and underscores, and also names its config file."
-msgstr "添加时填写实例名，只能用字母、数字和下划线，它同时决定配置文件名。"
+msgid "The instance name may only contain letters, digits and underscores, and also names its config directory."
+msgstr "添加时填写实例名，只能用字母、数字和下划线，它同时决定配置目录名。"
 
 msgid "There are unapplied changes, save and apply them before renaming."
 msgstr "还有未应用的改动，请先保存并应用再改名"

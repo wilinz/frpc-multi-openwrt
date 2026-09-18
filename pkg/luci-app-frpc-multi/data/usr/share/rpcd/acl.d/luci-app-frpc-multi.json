@@ -7,7 +7,8 @@
 				"uci": [ "changes" ]
 			},
 			"file": {
-				"/etc/frpc-multi/*": [ "read" ],
+				"/etc/frpc-multi/*": [ "list", "read" ],
+				"/etc/frpc-multi/*/*": [ "read" ],
 				"/sbin/logread": [ "exec" ]
 			},
 			"uci": [ "frpc-multi" ]
@@ -17,9 +18,9 @@
 				"luci": [ "setInitAction" ]
 			},
 			"file": {
-				"/etc/frpc-multi/*": [ "write" ],
+				"/etc/frpc-multi/*/*": [ "write" ],
 				"/etc/init.d/frpc-multi": [ "exec" ],
-				"/usr/libexec/frpc-multi/rename": [ "exec" ]
+				"/usr/libexec/frpc-multi/ctl": [ "exec" ]
 			},
 			"uci": [ "frpc-multi" ]
 		}

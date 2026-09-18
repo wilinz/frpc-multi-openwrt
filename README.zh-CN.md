@@ -6,15 +6,16 @@
 
 ![LuCI 界面](docs/screenshot.webp)
 
-每个实例是一个独立的 frpc 进程，使用自己的 TOML 配置文件，可以单独启停、重启、改名、看日志。
+每个实例是一个独立的 frpc 进程，可以单独启停、重启、改名、看日志。
+一个实例里可以放一个或多个 TOML 配置文件，每个文件连一台 frps；同一实例中启用的文件共用这个进程，省内存。
 frpc 二进制直接取自 frp 官方 release，不自己编译。
 
 包名、服务名、配置路径都用 `frpc-multi`，与官方软件源的 `frpc` / `luci-app-frpc` 互不冲突，可以同时安装。
 
 ## 为什么需要它
 
-- 官方 `frpc` 包只有一份配置，想连多个 frps、或者把不同隧道分开管理(一条挂了不影响另一条)就不方便。
-- 官方 LuCI 把 frpc 的参数逐项做成表单，跟不上 frp 的新参数；这里直接编辑原生 TOML，frp 支持什么就能写什么。
+- 官方 `frpc` 包只跑一个 frpc 进程、一份配置，只能连一台 frps。这里可以连多台服务器：分成多个实例，重启一个不影响别的；或者放进同一实例的多个文件，省内存。
+- 官方 `luci-app-frpc` 用 UCI 表单逐项填写，再生成配置文件；这里直接编辑原生 TOML，格式和 frp 文档一致，现成的 frpc 配置可以原样粘贴进来。
 
 ## 组成
 
@@ -53,7 +54,7 @@ opkg install frpc-multi_*_<arch>.ipk luci-app-frpc-multi_*_all.ipk
 ```
 
 装完带一个停用的示例实例 `main`。在 LuCI 里填好配置后打开，或者直接改文件：
-每个 `instance` 段是一个实例，配置文件固定为 `/etc/frpc-multi/<实例名>.toml`。
+每个 `instance` 段是一个实例，配置文件是 `/etc/frpc-multi/<实例名>/*.toml`。
 
 ```
 # /etc/config/frpc-multi
@@ -61,24 +62,28 @@ config instance 'office'
 	option enabled '1'
 config instance 'home'
 	option enabled '1'
+	list disabled 'backup'      # 跳过 /etc/frpc-multi/home/backup.toml
 ```
 
 ```sh
 /etc/init.d/frpc-multi reload                   # 只重启配置文件或开关有变化的实例
 /etc/init.d/frpc-multi restart office           # 只重启一个实例
-/usr/libexec/frpc-multi/rename office work      # 改名, 配置文件一起改
+/usr/libexec/frpc-multi/ctl rename office work  # 改名, 配置目录一起改
 logread -e '^frpc-office\['                     # 单个实例的日志
 ```
 
-实例名只能用字母、数字和下划线。配置文件缺失或为空的实例会被跳过，并在它的日志里留一条警告。
+实例名只能用字母、数字和下划线。实例只有一个启用的文件时用 `frpc -c` 运行；有多个时用 `frpc --config-dir`，目录里只放这些文件的软链接。没有任何启用且非空文件的实例会被跳过，并在它的日志里留一条警告。
+
+从 1.0.0 升级时，`/etc/frpc-multi/<实例名>.toml` 会自动挪到 `/etc/frpc-multi/<实例名>/frpc.toml`。
 
 ## LuCI
 
 - 每个实例折叠成一行，显示运行状态，可单独重启、删除；展开后可改名、开关、编辑配置文件、查看日志。
+- 配置文件以标签页显示，每个文件可以添加、删除、启用、停用。
 - 保存时直接写配置文件并 reload，只有改动过的实例会重启。
 - 改名立即生效；有未“保存并应用”的改动时会拒绝，免得那些改动还指着旧名字。
 - 日志面板可按级别筛选、搜索、跟随最新、换行、复制、下载，最多显示最近 500 行。
-- 删除实例不会删除它的 `.toml`，同名重建会沿用。
+- 删除实例不会删除它的配置目录，同名重建会沿用。
 - 界面默认英文；LuCI 语言为中文，或为“自动”且浏览器是中文时显示中文。
 
 ## 行为说明

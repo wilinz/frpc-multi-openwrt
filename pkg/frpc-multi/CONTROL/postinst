@@ -1,5 +1,13 @@
 #!/bin/sh
 [ -n "$IPKG_INSTROOT" ] || {
+	# 1.0.0 的配置是 /etc/frpc-multi/<实例>.toml, 挪进各实例目录
+	/usr/libexec/frpc-multi/ctl migrate
+	# 默认配置里的示例实例 main 还没有配置目录(全新安装)时放一份示例, 已有的不动
+	if [ "$(uci -q get frpc-multi.main)" = "instance" ] && [ ! -e /etc/frpc-multi/main ]; then
+		/usr/libexec/frpc-multi/ctl mkdir main
+		cp /usr/share/frpc-multi/frpc.toml.example /etc/frpc-multi/main/frpc.toml
+		chmod 600 /etc/frpc-multi/main/frpc.toml
+	fi
 	/etc/init.d/frpc-multi enable
 	# 各实例 enabled=0 时 start 只注册触发器, 不真正拉起
 	/etc/init.d/frpc-multi start 2>/dev/null

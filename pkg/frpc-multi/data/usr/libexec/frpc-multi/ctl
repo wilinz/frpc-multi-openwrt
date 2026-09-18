@@ -1,0 +1,53 @@
+#!/bin/sh
+# frpc-multi 管理脚本
+#   ctl rename <旧名> <新名>   实例改名: UCI 段名与配置目录一起改, 然后 reload
+#   ctl mkdir <实例>           建实例配置目录(LuCI 写文件前调用, rpcd 不会自动建目录)
+#   ctl migrate                旧布局 /etc/frpc-multi/<实例>.toml -> /etc/frpc-multi/<实例>/frpc.toml
+# 退出码供 LuCI 显示本地化提示: 2 名字非法, 3 旧实例不存在, 4 新实例已存在,
+# 5 新配置目录已存在, 6 UCI 改名失败
+CONFDIR=/etc/frpc-multi
+
+fail() { echo "$2" >&2; exit "$1"; }
+
+check_name() {
+	case "$1" in
+		""|*[!A-Za-z0-9_]*) fail 2 "instance names may only contain letters, digits and underscores" ;;
+	esac
+}
+
+cmd_rename() {
+	local old="$1" new="$2"
+	check_name "$new"
+	[ "$old" = "$new" ] && exit 0
+	[ "$(uci -q get "frpc-multi.$old")" = "instance" ] || fail 3 "instance $old does not exist"
+	uci -q get "frpc-multi.$new" >/dev/null && fail 4 "instance $new already exists"
+	[ -e "$CONFDIR/$new" ] && fail 5 "$CONFDIR/$new already exists"
+
+	uci rename "frpc-multi.$old=$new" && uci commit frpc-multi || fail 6 "failed to rename the UCI section"
+	[ -e "$CONFDIR/$old" ] && mv "$CONFDIR/$old" "$CONFDIR/$new"
+	rm -rf "/var/run/frpc-multi/frpc-$old" "/var/run/frpc-multi/$old.d"
+	/etc/init.d/frpc-multi reload
+}
+
+cmd_mkdir() {
+	check_name "$1"
+	mkdir -p "$CONFDIR/$1" && chmod 700 "$CONFDIR/$1"
+}
+
+cmd_migrate() {
+	local f s
+	for f in "$CONFDIR"/*.toml; do
+		[ -f "$f" ] || continue
+		s="${f##*/}"; s="${s%.toml}"
+		# 目录已存在说明迁过或新建过, 不覆盖
+		[ -e "$CONFDIR/$s" ] && continue
+		mkdir -p "$CONFDIR/$s" && chmod 700 "$CONFDIR/$s" && mv "$f" "$CONFDIR/$s/frpc.toml"
+	done
+}
+
+case "$1" in
+	rename)  shift; cmd_rename "$@" ;;
+	mkdir)   shift; cmd_mkdir "$@" ;;
+	migrate) cmd_migrate ;;
+	*) echo "usage: $0 rename <old> <new> | mkdir <instance> | migrate" >&2; exit 1 ;;
+esac

@@ -31,6 +31,8 @@ var callUciChanges = rpc.declare({
 
 var CONF = 'frpc-multi';
 var CONFDIR = '/etc/frpc-multi/';
+var CTL = '/usr/libexec/frpc-multi/ctl';
+var FILE_RE = /^[A-Za-z0-9_-]+$/;
 var LOG_LINES = 500;
 
 var CSS = [
@@ -44,6 +46,16 @@ var CSS = [
 	'.frpc-instance[open] > summary { border-bottom: 1px solid rgba(128,128,128,.3) }',
 	'.frpc-instance > .cbi-section-node { padding: 8px 0 }',
 	'.frpc-row { min-height: 30px; display: flex; align-items: center; gap: 6px }',
+	'.frpc-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 6px }',
+	'.frpc-tab { height: 28px; padding: 0 10px; border: 1px solid var(--border-color-medium, #ccc); border-radius: 3px;' +
+		' background: var(--background-color-medium, #f5f5f5); color: inherit; font-family: monospace; cursor: pointer }',
+	'.frpc-tab.active { background: var(--background-color-high, #fff); border-color: var(--primary-color-high, #1976d2); color: var(--primary-color-high, #1976d2) }',
+	'.frpc-tab.off { text-decoration: line-through; opacity: .6 }',
+	'.frpc-tabs input { width: 160px; margin-left: 8px }',
+	'.frpc-filebar { display: flex; align-items: center; gap: 12px; margin-bottom: 6px }',
+	'.frpc-filebar label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer }',
+	'.frpc-filebar .cbi-button-remove { margin-left: auto }',
+	'.frpc-files textarea { width: 100%; font-family: monospace }',
 	// 值列是 flex 子项, 默认最小宽度等于内容宽度, 不换行的长日志会把它撑出容器并挤到下一行
 	'.frpc-instance .cbi-value-field { min-width: 0 }',
 	// 日志面板配色全部取主题变量, 与输入框/文本框同一套边框和底色, 暗色主题也跟着变
@@ -72,8 +84,10 @@ var CSS = [
 	'.frpc-logempty { padding: 24px; text-align: center; color: var(--text-color-medium, #777); white-space: normal }'
 ].join('\n');
 
-// 各实例配置文件内容, load 时预读, 保存后同步更新
+// 各实例的配置文件 [[文件名(不含 .toml), 内容], ...], load 时预读, 保存后同步更新
 var confs = {};
+// 各实例配置文件的编辑状态, 表单重新渲染前一直保留
+var fileState = {};
 // 本次保存是否改动了配置文件(文件不走 UCI, 要手动 reload)
 var confChanged = false;
 // 保存后 form.Map 会重新渲染, 轮询只注册一次
@@ -100,8 +114,60 @@ function setOpened(sid, open) {
 	} catch (e) {}
 }
 
-function confPath(sid) {
-	return CONFDIR + sid + '.toml';
+function instDir(sid) {
+	return CONFDIR + sid;
+}
+
+function filePath(sid, name) {
+	return instDir(sid) + '/' + name + '.toml';
+}
+
+function loadFiles(sid) {
+	return L.resolveDefault(fs.list(instDir(sid)), []).then(function (entries) {
+		var names = entries.filter(function (e) {
+			return e.type == 'file' && /\.toml$/.test(e.name) && FILE_RE.test(e.name.slice(0, -5));
+		}).map(function (e) { return e.name.slice(0, -5); }).sort();
+		return Promise.all(names.map(function (n) {
+			return L.resolveDefault(fs.trimmed(filePath(sid, n)), '').then(function (c) { return [ n, c ]; });
+		}));
+	}).then(function (pairs) {
+		confs[sid] = pairs;
+	});
+}
+
+function normContent(c) {
+	return (c || '').replace(/\r\n/g, '\n').trim();
+}
+
+// 编辑状态: files 里每项 { name, content, orig, exists, enabled }; removed 是删掉的已有文件
+function getFileState(sid) {
+	if (fileState[sid])
+		return fileState[sid];
+	var disabled = L.toArray(uci.get(CONF, sid, 'disabled')).sort(),
+	    st = { files: [], removed: [], origDisabled: disabled };
+	(confs[sid] || []).forEach(function (p) {
+		st.files.push({ name: p[0], content: p[1], orig: p[1], exists: true });
+	});
+	// 新实例先给一个空的 frpc.toml, 不编辑就不会写盘
+	if (!st.files.length)
+		st.files.push({ name: 'frpc', content: '', orig: '', exists: false });
+	st.files.forEach(function (f) { f.enabled = disabled.indexOf(f.name) < 0; });
+	st.active = st.files[0].name;
+	st.origKey = serializeFiles(st);
+	return (fileState[sid] = st);
+}
+
+function fileDirty(f) {
+	return f.exists ? normContent(f.content) !== f.orig : (f.added || normContent(f.content) !== '');
+}
+
+function serializeFiles(st) {
+	return JSON.stringify({
+		f: st.files.filter(function (f) { return f.exists || fileDirty(f); })
+			.map(function (f) { return [ f.name, normContent(f.content) ]; })
+			.sort(function (a, b) { return a[0] < b[0] ? -1 : 1; }),
+		d: st.files.filter(function (f) { return !f.enabled; }).map(function (f) { return f.name; }).sort()
+	});
 }
 
 function notifyError(e) {
@@ -314,6 +380,84 @@ function restartInstance(sid) {
 	}).catch(notifyError);
 }
 
+function activeFile(st) {
+	return st.files.filter(function (f) { return f.name === st.active; })[0] || null;
+}
+
+// 编辑框内容先存回状态, 再切标签/重绘, 否则会丢掉没保存的输入
+function syncActive(st, root) {
+	var ta = root.querySelector('textarea'), f = activeFile(st);
+	if (ta && f)
+		f.content = ta.value;
+}
+
+function renderFiles(st, root) {
+	var cur = activeFile(st), nameInput;
+
+	function rerender() {
+		renderFiles(st, root);
+	}
+
+	function addFile(ev) {
+		ev.preventDefault();
+		var n = nameInput.value.trim().replace(/\.toml$/, ''), gone;
+		if (!FILE_RE.test(n))
+			return notifyError(_('File names may only contain letters, digits, underscores and hyphens'));
+		if (st.files.some(function (f) { return f.name === n; }))
+			return notifyError(_('File %s already exists').format(n + '.toml'));
+		syncActive(st, root);
+		// 删掉又加回同名文件: 当作改写原文件
+		gone = st.removed.filter(function (f) { return f.name === n; })[0];
+		st.removed = st.removed.filter(function (f) { return f !== gone; });
+		st.files.push(gone ? { name: n, content: '', orig: gone.orig, exists: gone.exists, enabled: true }
+			: { name: n, content: '', orig: '', exists: false, added: true, enabled: true });
+		st.active = n;
+		rerender();
+	}
+
+	nameInput = E('input', { 'type': 'text', 'class': 'cbi-input-text', 'placeholder': _('New file name'),
+		'keydown': function (ev) { if (ev.key === 'Enter') addFile(ev); } });
+
+	dom.content(root, [
+		E('div', { 'class': 'frpc-tabs' }, st.files.map(function (f) {
+			return E('button', {
+				'class': 'frpc-tab' + (f.name === st.active ? ' active' : '') + (f.enabled ? '' : ' off'),
+				'title': f.enabled ? null : _('Disabled'),
+				'click': function (ev) {
+					ev.preventDefault();
+					syncActive(st, root);
+					st.active = f.name;
+					rerender();
+				}
+			}, f.name + '.toml');
+		}).concat([
+			nameInput,
+			E('button', { 'class': 'cbi-button cbi-button-add', 'click': addFile }, _('Add file'))
+		])),
+		cur ? E('div', { 'class': 'frpc-filebar' }, [
+			E('label', {}, [
+				E('input', { 'type': 'checkbox', 'checked': cur.enabled ? '' : null, 'change': function (ev) {
+					syncActive(st, root);
+					cur.enabled = ev.target.checked;
+					rerender();
+				} }),
+				_('Enable')
+			]),
+			E('button', { 'class': 'cbi-button cbi-button-remove', 'click': function (ev) {
+				ev.preventDefault();
+				st.files = st.files.filter(function (f) { return f !== cur; });
+				if (cur.exists)
+					st.removed.push(cur);
+				st.active = st.files.length ? st.files[0].name : null;
+				rerender();
+			} }, _('Delete file'))
+		]) : '',
+		cur ? E('textarea', { 'class': 'cbi-input-textarea', 'rows': 20, 'wrap': 'off',
+			'placeholder': 'serverAddr = "x.x.x.x"\nserverPort = 7000\n...' }, [ cur.content ])
+			: E('em', {}, _('No config files yet'))
+	]);
+}
+
 // 改名在路由器上一步完成(UCI 段名 + 配置文件 + reload), 不走暂存;
 // 有未应用的 frpc 改动时拒绝, 否则那些改动还指着旧段名
 function renameInstance(sid, name) {
@@ -326,14 +470,14 @@ function renameInstance(sid, name) {
 	return callUciChanges().then(function (changes) {
 		if (changes[CONF] && changes[CONF].length)
 			throw new Error(_('There are unapplied changes, save and apply them before renaming.'));
-		return fs.exec('/usr/libexec/frpc-multi/rename', [ sid, name ]);
+		return fs.exec(CTL, [ 'rename', sid, name ]);
 	}).then(function (res) {
 		if (res.code !== 0)
 			throw new Error({
 				2: _('Instance names may only contain letters, digits and underscores'),
 				3: _('Instance %s does not exist').format(sid),
 				4: _('Instance %s already exists').format(name),
-				5: _('%s already exists').format(confPath(name)),
+				5: _('%s already exists').format(instDir(name)),
 				6: _('Failed to rename the UCI section')
 			}[res.code] || (res.stderr || '').trim() || _('Rename failed'));
 		if (opened[sid]) {
@@ -350,10 +494,7 @@ return view.extend({
 			callServiceList(CONF),
 			uci.load(CONF).then(function () {
 				return Promise.all(uci.sections(CONF, 'instance').map(function (s) {
-					var sid = s['.name'];
-					return L.resolveDefault(fs.trimmed(confPath(sid)), '').then(function (c) {
-						confs[sid] = c;
-					});
+					return loadFiles(s['.name']);
 				}));
 			})
 		]);
@@ -373,11 +514,11 @@ return view.extend({
 		lastStatus = data[0];
 
 		m = new form.Map(CONF, _('FrpcMulti'),
-			_('Each instance runs as a separate client process with its config file at /etc/frpc-multi/&lt;name&gt;.toml.') + ' ' +
+			_('Each instance runs as a separate process with its config files in /etc/frpc-multi/&lt;name&gt;/.') + ' ' +
 			_('Instances whose settings changed are restarted automatically on save.'));
 
 		s = m.section(form.TypedSection, 'instance', _('Instances'),
-			_('The instance name may only contain letters, digits and underscores, and also names its config file.'));
+			_('The instance name may only contain letters, digits and underscores, and also names its config directory.'));
 		s.anonymous = false;
 		s.addremove = true;
 		s.addbtntitle = _('Add instance');
@@ -464,29 +605,60 @@ return view.extend({
 			    }, _('Rename'));
 			return E('div', { 'class': 'frpc-row' }, [ input, btn ]);
 		};
-		o.description = _('Renaming takes effect immediately and renames the config file too.');
+		o.description = _('Renaming takes effect immediately and renames the config directory too.');
 
 		o = s.option(form.Flag, 'enabled', _('Enable'));
 		o.rmempty = false;
 
-		o = s.option(form.TextValue, '_conf', _('Config file'));
-		o.rows = 24;
-		o.wrap = 'off';
-		o.monospace = true;
-		o.placeholder = 'serverAddr = "x.x.x.x"\nserverPort = 7000\n...';
+		// 多个配置文件: 每个连一台服务器, 同一实例的已启用文件共用一个进程。
+		// 文件内容直接写盘, 启用状态存 UCI 的 disabled 列表, 两者都在保存时一起处理
+		o = s.option(form.Value, '_files', _('Config files'),
+			_('Each file connects to one server, and all enabled files of this instance run in one process.'));
 		o.cfgvalue = function (section_id) {
-			return confs[section_id] || '';
+			return getFileState(section_id).origKey;
 		};
-		o.write = function (section_id, value) {
-			value = (value || '').replace(/\r\n/g, '\n').trim();
-			return fs.write(confPath(section_id), value ? value + '\n' : '').then(function () {
-				confs[section_id] = value;
-				confChanged = true;
+		o.formvalue = function (section_id) {
+			var st = getFileState(section_id), root = document.querySelector('[data-frpc-files="' + section_id + '"]');
+			if (root)
+				syncActive(st, root);
+			return serializeFiles(st);
+		};
+		o.renderWidget = function (section_id) {
+			var st = getFileState(section_id),
+			    root = E('div', { 'class': 'frpc-files', 'data-frpc-files': section_id });
+			renderFiles(st, root);
+			return root;
+		};
+		o.write = function (section_id) {
+			var st = getFileState(section_id), map = this.map,
+			    changed = st.files.filter(fileDirty),
+			    removed = st.removed.filter(function (f) { return f.exists; });
+
+			return (changed.length ? fs.exec(CTL, [ 'mkdir', section_id ]) : Promise.resolve()).then(function () {
+				return Promise.all(changed.map(function (f) {
+					var c = normContent(f.content);
+					// 含 token, 新建文件用 0600
+					return fs.write(filePath(section_id, f.name), c ? c + '\n' : '', 384);
+				}).concat(removed.map(function (f) {
+					return fs.remove(filePath(section_id, f.name));
+				})));
+			}).then(function () {
+				var dis = st.files.filter(function (f) { return !f.enabled; }).map(function (f) { return f.name; }).sort();
+				if (JSON.stringify(dis) !== JSON.stringify(st.origDisabled)) {
+					if (dis.length)
+						map.data.set(CONF, section_id, 'disabled', dis);
+					else
+						map.data.unset(CONF, section_id, 'disabled');
+				}
+				if (changed.length || removed.length)
+					confChanged = true;
+				confs[section_id] = st.files.filter(function (f) { return f.exists || fileDirty(f); })
+					.map(function (f) { return [ f.name, normContent(f.content) ]; })
+					.sort(function (a, b) { return a[0] < b[0] ? -1 : 1; });
+				delete fileState[section_id];
 			});
 		};
-		o.remove = function (section_id) {
-			return this.write(section_id, '');
-		};
+		o.remove = function () {};
 
 		// 放在表单行里, 左边沿与配置文件框对齐
 		o = s.option(form.DummyValue, '_log', _('Log'));
