@@ -61,6 +61,9 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
+          # actions/checkout 在 tag 触发时会把 annotated tag 换成轻量 tag, 此时读到的"正文"
+          # 其实是 commit message; 强制从远端重新取一次 tag 对象
+          git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
           # 本版改动 = `git tag -a` 的正文; 没有就退回 tag 标题, 再没有就退回 commit 标题
           hl="$(git tag -l --format='%(contents:body)' "$TAG")"
           [ -n "${hl//[[:space:]]/}" ] || hl="$(git tag -l --format='%(contents:subject)' "$TAG")"
