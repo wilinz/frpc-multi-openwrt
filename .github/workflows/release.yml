@@ -1,0 +1,94 @@
+name: release
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # tag 触发用 tag 作版本号; 手动触发用 0.0.0-<短 commit>, 只出产物不发布
+      - name: Derive version
+        id: ver
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=0.0.0-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+      # frpc 不编译, 直接取 frp 官方 release, 所以一个 job 循环各架构即可, 不用矩阵。
+      # frp 不出 32 位 x86, 没有 i386; arm 的硬浮点/软浮点由 build.sh 按架构名选。
+      - name: Build ipk(s)
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          for arch in \
+            x86_64 \
+            aarch64_generic aarch64_cortex-a53 aarch64_cortex-a72 aarch64_cortex-a76 \
+            arm_cortex-a5_vfpv4 arm_cortex-a7_neon-vfpv4 arm_cortex-a9_vfpv3-d16 arm_cortex-a15_neon-vfpv4 \
+            arm_cortex-a7 arm_cortex-a9 arm_arm1176jzf-s_vfp arm_arm926ej-s arm_xscale \
+            mipsel_24kc mipsel_74kc mipsel_mips32 mips_24kc mips_mips32 \
+            mips64_octeonplus mips64_mips64r2 mips64el_mips64r2 \
+            riscv64_riscv64 loongarch64_generic
+          do
+            ARCH="$arch" BUILD_LUCI=0 ./build.sh >/dev/null
+            echo "built $arch"
+          done
+          BUILD_ENGINE=0 ./build.sh
+          ls -la out
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ipk
+          path: out/*.ipk
+          if-no-files-found: error
+
+      - name: Compose release notes
+        if: github.ref_type == 'tag'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # 本版改动 = `git tag -a` 的正文; 没有就退回 tag 标题, 再没有就退回 commit 标题
+          hl="$(git tag -l --format='%(contents:body)' "$TAG")"
+          [ -n "${hl//[[:space:]]/}" ] || hl="$(git tag -l --format='%(contents:subject)' "$TAG")"
+          [ -n "${hl//[[:space:]]/}" ] || hl="$(git log -1 --format=%s "$TAG")"
+          frp="$(sed -n 's/^FRP_VERSION="${FRP_VERSION:-\(.*\)}"$/\1/p' build.sh)"
+          {
+            printf 'frpc-multi — run multiple frp client instances on OpenWrt, with a minimal LuCI interface. Bundles frp %s.\n\n' "$frp"
+            printf '## Changes\n\n%s\n\n' "$hl"
+            cat <<'NOTES'
+          ## Install
+
+          Download `frpc-multi_*_<arch>.ipk` for your router's architecture, plus the
+          architecture-independent `luci-app-frpc-multi_*_all.ipk`:
+
+          ```sh
+          opkg install frpc-multi_*_<arch>.ipk luci-app-frpc-multi_*_all.ipk
+          ```
+
+          Run `opkg print-architecture` to see your architecture. The frpc binary is
+          statically linked, so `--force-architecture` works within the same CPU family.
+          There is no i386 build because frp does not ship one.
+          NOTES
+          } > release-notes.md
+          cat release-notes.md
+
+      - name: Publish Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*.ipk
+          body_path: release-notes.md

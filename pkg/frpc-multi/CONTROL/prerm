@@ -1,0 +1,6 @@
+#!/bin/sh
+[ -n "$IPKG_INSTROOT" ] || {
+	/etc/init.d/frpc-multi stop 2>/dev/null
+	/etc/init.d/frpc-multi disable 2>/dev/null
+}
+exit 0

@@ -1,0 +1,14 @@
+{
+	"admin/services/frpc-multi": {
+		"title": "FrpcMulti",
+		"order": 60,
+		"action": {
+			"type": "view",
+			"path": "frpc-multi/main"
+		},
+		"depends": {
+			"acl": [ "luci-app-frpc-multi" ],
+			"uci": { "frpc-multi": true }
+		}
+	}
+}

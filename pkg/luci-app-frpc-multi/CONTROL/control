@@ -1,0 +1,8 @@
+Package: luci-app-frpc-multi
+Version: 1.0.0
+Architecture: all
+Maintainer: wilinz
+Section: luci
+Priority: optional
+Depends: luci-base, frpc-multi, rpcd
+Description: LuCI interface for frpc-multi

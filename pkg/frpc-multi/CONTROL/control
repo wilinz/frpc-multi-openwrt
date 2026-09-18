@@ -1,0 +1,7 @@
+Package: frpc-multi
+Version: 1.0.0
+Architecture: x86_64
+Maintainer: wilinz
+Section: net
+Priority: optional
+Description: frp client 0.71.0, runs multiple instances with one config file each

@@ -1,4 +1,5 @@
 out/
 dl/
-pkg/frpc/data/usr/bin/frpc
+pkg/frpc-multi/data/usr/libexec/frpc-multi/frpc
 .DS_Store
+pkg/luci-app-frpc-multi/data/usr/lib/lua/luci/i18n/

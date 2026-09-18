@@ -1,0 +1,13 @@
+# 完整参数见 https://github.com/fatedier/frp/blob/dev/conf/frpc_full_example.toml
+serverAddr = "x.x.x.x"
+serverPort = 7000
+auth.token = "change-me"
+# 日志写进系统日志, 不要终端颜色码
+log.disablePrintColor = true
+
+[[proxies]]
+name = "ssh"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 22
+remotePort = 6000

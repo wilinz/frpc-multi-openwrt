@@ -1,7 +1,0 @@
-#!/bin/sh
-[ -n "$IPKG_INSTROOT" ] || {
-	/etc/init.d/frpc enable
-	# 各实例 enabled=0 时 start 只注册触发器, 不真正拉起
-	/etc/init.d/frpc start 2>/dev/null
-}
-exit 0

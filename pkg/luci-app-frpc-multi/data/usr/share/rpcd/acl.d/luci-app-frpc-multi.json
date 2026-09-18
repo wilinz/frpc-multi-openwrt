@@ -1,0 +1,27 @@
+{
+	"luci-app-frpc-multi": {
+		"description": "Grant access to frpc-multi",
+		"read": {
+			"ubus": {
+				"service": [ "list" ],
+				"uci": [ "changes" ]
+			},
+			"file": {
+				"/etc/frpc-multi/*": [ "read" ],
+				"/sbin/logread": [ "exec" ]
+			},
+			"uci": [ "frpc-multi" ]
+		},
+		"write": {
+			"ubus": {
+				"luci": [ "setInitAction" ]
+			},
+			"file": {
+				"/etc/frpc-multi/*": [ "write" ],
+				"/etc/init.d/frpc-multi": [ "exec" ],
+				"/usr/libexec/frpc-multi/rename": [ "exec" ]
+			},
+			"uci": [ "frpc-multi" ]
+		}
+	}
+}
