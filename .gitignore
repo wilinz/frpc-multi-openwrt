@@ -1,0 +1,4 @@
+out/
+dl/
+pkg/frpc/data/usr/bin/frpc
+.DS_Store

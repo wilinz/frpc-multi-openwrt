@@ -1,0 +1,8 @@
+Package: luci-app-frpc
+Version: 1.0.0
+Architecture: all
+Maintainer: wilinz
+Section: luci
+Priority: optional
+Depends: luci-base, frpc, rpcd
+Description: LuCI 界面 - frp 客户端(多实例, 启用开关与配置文件编辑)
